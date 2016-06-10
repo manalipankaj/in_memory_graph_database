@@ -3,6 +3,8 @@
    (require [cheshire.core :as json]
            [cheshire.parse :as parse]))
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defrecord Vertices
     [id label in out properties])
 
@@ -13,7 +15,7 @@
 
 (def edges-array (atom []))
 
-(defn generate-i
+(defn generate-id
   "Generates unique ID"
   []
   (. clojure.lang.RT (nextID)))
@@ -35,7 +37,7 @@
     (map add-vertex vertices)))
 
 (defn add-relation-to-vertex
-  "Creates realtionship edge"
+  "Creates uni realtionship edge"
   [in out edge]
   (let [in-node (get @vertex-index in) out-node (get @vertex-index out)] 
     (swap! vertex-index assoc 
@@ -43,16 +45,27 @@
     (swap! vertex-index assoc
            out (Vertices. (:id out-node) (:label out-node) (:in out-node) (conj (:out out-node) edge) (:properties out-node)))))
 
+(defn add-bidirectional-relation
+  [in out edge edge2]
+  (let [in-node (get @vertex-index in) out-node (get @vertex-index out)] 
+    (swap! vertex-index assoc 
+           in (Vertices. (:id in-node) (:label in-node) (:in in-node) (conj (:out in-node) edge2) (:properties in-node)))
+    (swap! vertex-index assoc
+           out (Vertices. (:id out-node) (:label out-node) (:in out-node) (conj (:out out-node) edge) (:properties out-node)))))
+
 (defn add-edge
-  [{:keys [label in out properties]}]
+  [{:keys [label in out properties] :as node}]
   (when (and (contains? @vertex-index in) (contains? @vertex-index out))
     (let [edge (Edges. label in out properties)] 
       (swap! edges-array conj edge)
-      (add-relation-to-vertex in out edge))))
+      (cond 
+       (contains? node :uni) (add-relation-to-vertex in out edge)
+       :else (add-bidirectional-relation in out edge (Edges. label out in properties))))))
 
 (defn add-edges
   [edges]
   (map add-edge edges))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn delete-all
   []
@@ -75,3 +88,19 @@
 (defn show-edge-data
   []
   (println (json/generate-string @edges-array {:pretty true})))
+
+(defn get-all-relationship
+  []
+  (println
+   (filter #(not (nil? %)) (map #(:label (first (:in (second %)))) @vertex-index))
+   (filter #(not (nil? %)) (map #(:label (first (:out (second %)))) @vertex-index))))
+
+(defn get-next-node
+  [node relation]
+  (if (string? node)
+    (filter #(= (:label %) relation) (:out (get @vertex-index node)))
+    (filter #(= (:label %) relation) (:out (get @vertex-index (:in (first node)))))))
+
+(defn query1
+  [query]
+  (map #(:in %) (reduce get-next-node query)))
