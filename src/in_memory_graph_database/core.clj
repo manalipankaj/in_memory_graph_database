@@ -23,12 +23,12 @@
   [ids {:keys [id label data]}]
   (if (contains? @vertex-index ids)
     nil
-    (dosync 
+    (dosync
      (alter vertex-index assoc ids (Vertices. ids label nil nil data)))))
 
 (defn add-vertex
   [vertex]
-  (let [id (if (nil? (:id vertex)) (generate-id) (:id vertex))] 
+  (let [id (if (nil? (:id vertex)) (generate-id) (:id vertex))]
     (add-vertex-index id vertex)))
 
 (defn add-vertices
@@ -39,30 +39,30 @@
 (defn add-relation-to-vertex
   "Creates uni realtionship edge"
   [in out edge]
-  (let [in-node (get @vertex-index in) out-node (get @vertex-index out)] 
-    (dosync 
-     (alter vertex-index assoc 
+  (let [in-node (get @vertex-index in) out-node (get @vertex-index out)]
+    (dosync
+     (alter vertex-index assoc
             in (Vertices. (:id in-node) (:label in-node) (conj (:in in-node) edge) (:out in-node) (:data in-node))))
-    (dosync 
+    (dosync
      (alter vertex-index assoc
             out (Vertices. (:id out-node) (:label out-node) (:in out-node) (conj (:out out-node) edge) (:data out-node))))))
 
 (defn add-bidirectional-relation
   [in out edge edge2]
-  (let [in-node (get @vertex-index in) out-node (get @vertex-index out)] 
-    (dosync 
-     (alter vertex-index assoc 
+  (let [in-node (get @vertex-index in) out-node (get @vertex-index out)]
+    (dosync
+     (alter vertex-index assoc
             in (Vertices. (:id in-node) (:label in-node) (:in in-node) (conj (:out in-node) edge2) (:data in-node))))
-    (dosync 
+    (dosync
      (alter vertex-index assoc
             out (Vertices. (:id out-node) (:label out-node) (:in out-node) (conj (:out out-node) edge) (:data out-node))))))
 
 (defn add-edge
   [{:keys [label in out data] :as node}]
   (when (and (contains? @vertex-index in) (contains? @vertex-index out))
-    (let [edge (Edges. label in out data)] 
+    (let [edge (Edges. label in out data)]
       (dosync (alter edges-array conj edge))
-      (cond 
+      (cond
        (contains? node :uni) (add-relation-to-vertex in out edge)
        :else (add-bidirectional-relation in out edge (Edges. label out in data))))))
 
@@ -78,7 +78,7 @@
 
 (defn delete-node
   [node]
-  (dosync 
+  (dosync
    (alter @vertex-index dissoc node)))
 
 (defn show-node-data
@@ -96,10 +96,14 @@
 (defn get-all-relationship
   []
   (println
-   (set 
-    (concat 
-     (filter #(not (nil? %)) (map #(:label (first (:in (second %)))) @vertex-index))
-     (filter #(not (nil? %)) (map #(:label (first (:out (second %)))) @vertex-index))))))
+   (set
+    (concat
+
+     (->> @vertex-index
+         (map #(->> % second :in first :label))
+         (filter #(not (nil? %))))
+     (filter #(not (nil? %)) (map #(:label (first (:out (second %)))) @vertex-index))
+     ))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;Query;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn get-next-node
@@ -110,9 +114,9 @@
       (filter #(= (:label %) relation) (:out (get @vertex-index (:in (first node)))))
       (map (fn [x] (filter (fn [y] (= (:label y) relation)) (:out (get @vertex-index (:in x))))) node))))
 
-(def func-for-query-map 
-  (fn [x] (if (map? x) 
-            (get @vertex-index (:in x)) 
+(def func-for-query-map
+  (fn [x] (if (map? x)
+            (get @vertex-index (:in x))
             (first (map (fn [y]  {(:out y) (get @vertex-index (:in y))}) x)))))
 
 (defn query1
